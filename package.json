@@ -4,13 +4,14 @@
   "description": "Cashu merchant and client interaction with NFC cards",
   "main": "main.js",
   "scripts": {
-    "merchant": "node src/merchant/index.js",
-    "client": "node src/client/index.js"
+    "merchant": "node src/merchant/main.js",
+    "client": "node src/client/main.js"
   },
   "author": "lollerfirst",
   "license": "MIT",
   "dependencies": {
     "@cashu/cashu-ts": "^1.1.0",
+    "inquirer": "^11.0.1",
     "nfc-pcsc": "^0.8.1",
     "sqlite3": "^5.1.7"
   }
