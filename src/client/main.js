@@ -6,7 +6,7 @@ const { CashuWallet } = require('@cashu/cashu-ts');
 const qrcode = require('qrcode-terminal');
 const bolt11 = require('bolt11');
 const CBOR = require('cbor-js');
-const { Buffer } = require('buffer'); 
+const { Buffer } = require('buffer');
 
 // MIFARE Ultralight
 const BLOCK_SIZE = 4;
@@ -15,10 +15,10 @@ const BLOCK_SIZE = 4;
 const configPath = path.join(__dirname, 'client.json');
 let config;
 try {
-  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 } catch (err) {
-  console.error(`Error loading configuration file: ${err}`);
-  process.exit(1);
+    console.error(`Error loading configuration file: ${err}`);
+    process.exit(1);
 }
 
 // Yoink token into credit card
@@ -153,7 +153,9 @@ nfc.on('reader', (reader) => {
             }
         } catch (err) {
             console.error(`error when writing data`, err);
+            return;
         }
+        beep_once();
     });
 
     // Set up behaviour when card is removed
