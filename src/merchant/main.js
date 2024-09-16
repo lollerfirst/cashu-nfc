@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const NFC = require('nfc-pcsc');
+const nfc = require('nfc-pcsc');
 
 // Load the configuration file
 const configPath = path.join(__dirname, 'merchant.json');
