@@ -1,0 +1,11 @@
+{
+  "name": "cashu-nfc",
+  "version": "0.0.1",
+  "description": "Cashu merchant and client interaction with NFC cards",
+  "main": "main.js",
+  "scripts": {
+    "test": "test"
+  },
+  "author": "lollerfirst",
+  "license": "MIT"
+}
