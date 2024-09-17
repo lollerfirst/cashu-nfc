@@ -1,18 +1,19 @@
-const fs = require('fs');
-const path = require('path');
-const { NFC } = require('nfc-pcsc');
-const inquirer = require('inquirer');
-const { CashuWallet } = require('@cashu/cashu-ts');
-const qrcode = require('qrcode-terminal');
-const bolt11 = require('bolt11');
-const CBOR = require('cbor-js');
-const { Buffer } = require('buffer');
+import fs from 'fs';
+import path from 'path';
+import { NFC } from 'nfc-pcsc';
+import inquirer from 'inquirer';
+import { CashuWallet, CashuMint } from '@cashu/cashu-ts';
+import qrcode from 'qrcode-terminal';
+import bolt11 from 'bolt11';
+import CBOR from 'cbor-js';
+import { Buffer } from 'buffer';
+import Audic from 'audic';
 
 // MIFARE Ultralight
 const BLOCK_SIZE = 4;
 
 // Load the configuration file
-const configPath = path.join(__dirname, 'client.json');
+const configPath = 'src/client/client.json';
 let config;
 try {
     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -21,7 +22,17 @@ try {
     process.exit(1);
 }
 
-// Yoink token into credit card
+let beepSuccess, beepError;
+if (config.sounds !== undefined){
+    if (config.sounds.beep_success !== undefined) {
+        beepSuccess = new Audic(config.sounds.beep_success);
+    }
+    if (config.sounds.beep_error !== undefined) {
+        beepError = new Audic(config.sounds.beep_error);
+    }
+}
+
+// Dump proofs into credit card, prefixing them with the length of the BLOB.
 async function dump_token(reader, mintUrl, proofs) {
     const bytesToken = CBOR.encode({
         'm': mintUrl,
@@ -31,15 +42,23 @@ async function dump_token(reader, mintUrl, proofs) {
     const data = Buffer.alloc(size, 0);
     let written = data.write(bytesToken);
     if (written < size) {
-        throw Error("Error while writing CBOR-encoded token to allocated buffer");
+        throw new Error("Error while writing CBOR-encoded token to allocated buffer");
     }
     const lengthBuffer = Buffer.allocUnsafe(4);
     written = lengthBuffer.writeUInt32BE(bytesToken.length);
     if (written < size) {
-        throw Error("Error while writing buffer size to allocated buffer");
+        throw new Error("Error while writing buffer size to allocated buffer");
     }
-    await reader.write(0, lengthBuffer);    // block 0 (BLOCK_SIZE)
-    await reader.write(1, data);            // block 1
+    await reader.write(4, lengthBuffer);    // block 4 (first data block)
+    await reader.write(5, data);            // block 5
+    // (hopefully using write does not overwrite the trailer block of the sector)
+}
+
+async function read_token(reader) {
+    const lengthBuffer = await reader.read(0, 4);
+    const bytesToken = await reader.read(1, lengthBuffer.readUInt32BE(0));
+    const token = CBOR.decode(bytesToken);
+    return token;   
 }
 
 // Load credit card
@@ -97,7 +116,7 @@ async function load_card(reader) {
         }
         if (mintQuote.state === 'ISSUED') {
             console.error("Mint quote was somehow already claimed!");
-            throw Error("Mint quote was somehow already claimed!");
+            throw new Error("Mint quote was somehow already claimed!");
         }
         proofs = await wallet.mintTokens(amountProofs, mintQuote.quote);
     }
@@ -105,17 +124,26 @@ async function load_card(reader) {
         throw Error("Invalid selection!");
     }
 
+    // Write token to card
     await dump_token(reader, wallet.mint.mintUrl, proofs);
 }
 async function unload_card(reader){
-    console.error("Not implemented!");
+    
 }
 async function refresh_card(reader){
     console.error("Not implemented!");
 }
 
 // Create a new wallet
-const wallet = new CashuWallet(config.mint);
+const wallet = new CashuWallet(config.mint, { unit:"sat" });
+try {
+    const mintInfo = await CashuMint.getInfo(config.mint);
+    console.log(`mintInfo: ${mintInfo.name} online!`);
+} catch (err) {
+    console.error(`Couldn\'t contact mint: ${err}`);
+    process.exit(1);
+}
+
 
 // Create NFC listener
 const nfc = new NFC();
@@ -152,10 +180,12 @@ nfc.on('reader', (reader) => {
                     console.error("Invalid option");
             }
         } catch (err) {
+            //await beepError.play();
             console.error(`error when writing data`, err);
             return;
         }
-        beep_once();
+        // await beepSuccess.play();
+        console.log("Success!");
     });
 
     // Set up behaviour when card is removed
@@ -165,14 +195,19 @@ nfc.on('reader', (reader) => {
 
     // Set up the reader to handle errors
     reader.on('error', (err) => {
+        //beepError.play().then();
         console.error(`NFC reader error: ${err}`);
     });
 
     // Behaviour when card reader is disconnected 
-    reader.on('end', () => {
+    reader.on('end', async () => {
         console.log(`${reader.reader.name}  card removed`);
         process.exit(1);
     });
+});
+
+nfc.on('error', err => {
+    console.error(`Error occurred `, err);
 });
 
 setInterval(() => {
