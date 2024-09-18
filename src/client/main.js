@@ -1,18 +1,15 @@
 import fs from 'fs';
-import path from 'path';
 import { NFC } from 'nfc-pcsc';
 import inquirer from 'inquirer';
 import {
     CashuWallet,
     CashuMint,
     getDecodedToken,
-    getEncodedToken,
     getEncodedTokenV4,
 } from '@cashu/cashu-ts';
 
 import qrcode from 'qrcode-terminal';
 import bolt11 from 'bolt11';
-import CBOR from 'cbor-js';
 import { Buffer } from 'buffer';
 
 // MIFARE Classic
@@ -37,7 +34,6 @@ function compileToken(mint, proofs) {
             proofs: proofs,
             mint: mint
         }],
-        memo: "Cashu-NFC card token",
         unit: "sat"
     }
 }
@@ -47,8 +43,11 @@ function sleep(seconds) {
 
 // Dump proofs into credit card, prefixing them with the length of the BLOB.
 async function dump_card(reader, tokenString) {
-    // Prefix length to the 
-    tokenString = tokenString.length.toString(16).padStart(4, '0') + tokenString;
+    // Prefix length
+    const hexLength = tokenString.length.toString(16).padStart(4, '0');
+    //console.log(`Dumping hex length token: ${hexLength}`);
+    //console.log(`tokenString: ${tokenString}`);
+    tokenString = hexLength + tokenString;
     let remainingLength = tokenString.length + (BLOCK_SIZE - (tokenString.length % BLOCK_SIZE));
     console.log(`Trying to write ${remainingLength} bytes to card`);
     const data = Buffer.alloc(remainingLength, 0);
@@ -90,7 +89,7 @@ async function read_card(reader) {
      let payload = await reader.read(block, BLOCK_SIZE, BLOCK_SIZE);
      let payloadString = payload.toString();
      let remainingSize = parseInt(payloadString.substring(0,4), 16) - BLOCK_SIZE + 4;
-     console.log(`remaining token size: ${remainingSize}`)
+     // console.log(`remaining token size: ${remainingSize}`)
      try {
         while (remainingSize > 0) {
             block += 1;
@@ -107,13 +106,22 @@ async function read_card(reader) {
     } catch (err) {
         throw new Error(`Error reading from card at block ${block}: ${err}`);
     }
-     console.log(`read token size: ${payloadString.length}`);
+     console.log(`read token: ${payloadString.substr(4)}`);
 
      return payloadString.substr(4);
 }
 
 // Load credit card
-async function load_card(reader) {
+async function loadCard(reader) {
+    // Save previous balance
+    let proofs = [];
+    try {
+        const tokenString = await read_card(reader);
+        proofs = await wallet.receive(tokenString);
+    } catch (err) {
+        proofs = [];
+        console.log("Couldn't read previous balance. Assuming zero."); 
+    }
     const answers = await inquirer.prompt([
         {
             type: 'list',
@@ -122,7 +130,6 @@ async function load_card(reader) {
             choices: ['Token', 'Lightning']
         }
     ]);
-    let proofs = [];
     let amountProofs = 0;
     // Swap received proofs
     if (answers.method === 'Token') {
@@ -133,7 +140,7 @@ async function load_card(reader) {
                 message: 'Paste the cashu token:'
             },
         );
-        proofs = await wallet.receive(tokenAnswer.token);
+        proofs = proofs.concat(await wallet.receive(tokenAnswer.token));
         amountProofs = proofs.reduce((acc, current) => acc + current.amount, 0);
     }
     // Mint new proofs
@@ -168,19 +175,23 @@ async function load_card(reader) {
             throw new Error("Mint quote was somehow already claimed!");
         }
         console.log("Invoice PAID!");
-        proofs = await wallet.mintTokens(amountProofs, mintQuote.quote);
+        const newProofs = await wallet.mintTokens(amountProofs, mintQuote.quote);
+        proofs = proofs.concat(newProofs.proofs);
     }
     else {
         throw Error("Invalid selection!");
     }
 
-    const tokenString = getEncodedTokenV4(compileToken(wallet.mint.mintUrl, proofs));
+    
+    const token = compileToken(wallet.mint.mintUrl, proofs);  
+    console.log(JSON.stringify(token.token[0].proofs, null, 2));
+    const tokenString = getEncodedTokenV4(token);
     // Write token to card
     await dump_card(reader, tokenString);
 }
 
 // Pay a lightning invoice or output a token
-async function unload_card(reader){
+async function unloadCard(reader){
     const tokenString = await read_card(reader);
     const token = getDecodedToken(tokenString);
     const answers = await inquirer.prompt([
@@ -193,7 +204,7 @@ async function unload_card(reader){
     ]);
     let proofs = token.token[0].proofs;
     let amountProofs = proofs.reduce((acc, current) => acc + current.amount, 0);
-    const mint = token.token[0].mint;;
+    const mint = token.token[0].mint;
     // Swap received proofs
     if (answers.method === 'Token') {
         if (mint !== wallet.mint.mintUrl) {
@@ -217,6 +228,7 @@ async function unload_card(reader){
             }
         ]);
         const decodedInvoice = bolt11.decode(invoiceAnswer.invoice);
+        console.log(`Invoice for ${decodedInvoice.satoshis} sats`);
         const tokenAmount = token.token[0].proofs.reduce((acc, curr) =>  acc + curr.amount, 0);
         if (tokenAmount < decodedInvoice.satoshis) {
             throw new Error("Card limit exceeded");
@@ -231,22 +243,28 @@ async function unload_card(reader){
             throw new Error("Error while paying the invoice");
         }
         console.log(`Payment success: ${preimage}`);
-        tokenChange = getEncodedTokenV4(compileToken(mint, change));
+        const tokenChange = getEncodedTokenV4(compileToken(mint, change));
         await dump_card(reader, tokenChange);
     }
     else {
         throw Error("Invalid selection!");
     }
 }
-async function refresh_card(reader){
+async function refreshCard(reader){
     console.error("Not implemented!");
+}
+
+async function getBalance(reader){
+    const tokenString = await read_card(reader);
+    const token = getDecodedToken(tokenString);
+    return token.token[0].proofs.reduce((acc, curr) => acc + curr.amount, 0);
 }
 
 // Create a new wallet
 const mint = new CashuMint(config.mint);
 const wallet = new CashuWallet(mint, { unit:"sat" });
 try {
-    const mintInfo = await CashuMint.getInfo(config.mint);
+    const mintInfo = await wallet.getMintInfo();
     console.log(`mintInfo: ${mintInfo.name} online!`);
 } catch (err) {
     console.error(`Couldn\'t contact mint: ${err}`);
@@ -254,7 +272,7 @@ try {
 }
 
 // Create NFC listener
-const nfc = new NFC(console);
+const nfc = new NFC();
 
 // Scan for connected NFC devices
 nfc.on('reader', (reader) => {
@@ -263,7 +281,14 @@ nfc.on('reader', (reader) => {
 
     // Set up the reader to scan for new NFC cards
     reader.on('card', async card => {
-		console.log(`card detected: `, card);
+		console.log(`card detected`);
+        let balance = 0;
+        try{
+            balance = await getBalance(reader);
+        } catch (err) {
+            console.error("Could not get balance");
+        }
+        console.log(`BALANCE: ${balance} sats`);
         const answer = await inquirer.prompt([
                 {
                     type: 'list',
@@ -276,24 +301,23 @@ nfc.on('reader', (reader) => {
         try{
             switch (answer.choice){
                 case 'top-up':
-                    await load_card(reader);
+                    await loadCard(reader);
                     break;
                 case 'withdraw':
-                    await unload_card(reader);
+                    await unloadCard(reader);
                     break;
                 case 'refresh':
-                    await refresh_card(reader);
+                    await refreshCard(reader);
                     break;
                 default:
                     console.error("Invalid option");
             }
+            // await beepSuccess.play();
+            console.log("Success!");
         } catch (err) {
             //await beepError.play();
-            console.error(`error when writing data`, err);
-            return;
+            console.error(`Error during operation: `, err);
         }
-        // await beepSuccess.play();
-        console.log("Success!");
     });
 
     // Set up behaviour when card is removed
