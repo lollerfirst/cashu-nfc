@@ -5,16 +5,16 @@
   "main": "main.js",
   "scripts": {
     "merchant": "node src/merchant/main.js",
-    "client": "node src/client/main.js"
+    "client": "node src/client/main.js",
+    "format": "npx eslint ."
   },
   "author": "lollerfirst",
   "license": "MIT",
   "dependencies": {
     "@cashu/cashu-ts": "^1.1.0",
-    "audic": "^3.0.2",
     "bolt11": "^1.4.1",
     "cbor-js": "^0.1.0",
-    "eslint": "^9.10.0",
+    "eslint": "^9.11.1",
     "inquirer": "^11.0.1",
     "nfc-pcsc": "^0.8.1",
     "qrcode-terminal": "^0.12.0",
