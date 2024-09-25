@@ -106,9 +106,44 @@ async function read_card(reader) {
     } catch (err) {
         throw new Error(`Error reading from card at block ${block}: ${err}`);
     }
-     console.log(`read token: ${payloadString.substr(4)}`);
+     //console.log(`read token: ${payloadString.substr(4)}`);
 
      return payloadString.substr(4);
+}
+
+async function reset_card(reader) {
+    let block = 3;
+    const zeros = Buffer.alloc(BLOCK_SIZE, 0);
+    try {
+        while (true) {
+            block += 1;
+            if (block % SECTOR_SIZE == SECTOR_SIZE - 1)
+                continue;
+            if (block % SECTOR_SIZE == 0)
+                await reader.authenticate(block, 0x60, 'FFFFFFFFFFFF');
+            await reader.write(block, zeros, BLOCK_SIZE);
+        }
+    } catch (err) {
+        console.log(`Reset stopped at block ${block}. Reason: ${err}`);
+    }
+}
+
+async function get_max_capacity(reader) {
+    let block = 3;
+    let capacity = 0;
+    try {
+        while (true) {
+            block += 1;
+            if (block % SECTOR_SIZE == SECTOR_SIZE - 1)
+                continue;
+            if (block % SECTOR_SIZE == 0)
+                await reader.authenticate(block, 0x60, 'FFFFFFFFFFFF');
+            await reader.read(block, BLOCK_SIZE, BLOCK_SIZE);
+            capacity += BLOCK_SIZE;
+        }
+    } catch (err) {
+        return capacity;
+    }
 }
 
 // Load credit card
@@ -184,7 +219,7 @@ async function loadCard(reader) {
 
     
     const token = compileToken(wallet.mint.mintUrl, proofs);  
-    console.log(JSON.stringify(token.token[0].proofs, null, 2));
+    //console.log(JSON.stringify(token.token[0].proofs, null, 2));
     const tokenString = getEncodedTokenV4(token);
     // Write token to card
     await dump_card(reader, tokenString);
@@ -194,6 +229,7 @@ async function loadCard(reader) {
 async function unloadCard(reader){
     const tokenString = await read_card(reader);
     const token = getDecodedToken(tokenString);
+    console.log(JSON.stringify(token.token[0].proofs, null, 2));
     const answers = await inquirer.prompt([
         {
             type: 'list',
@@ -250,8 +286,33 @@ async function unloadCard(reader){
         throw Error("Invalid selection!");
     }
 }
-async function refreshCard(reader){
-    console.error("Not implemented!");
+
+async function refreshCard(reader) {
+    let tokenString = await read_card(reader);
+    const proofs = await wallet.receive(tokenString);
+    tokenString = getEncodedTokenV4(compileToken(wallet.mint.mintUrl, proofs));
+    await dump_card(reader, tokenString);
+    console.log("Card Refreshed!");
+}
+
+async function resetCard(reader) {
+    const answer = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'conf',
+            message: 'Are you sure about this?',
+            default: false
+        }
+    ]);
+
+    if (answer.conf == true) {
+        console.log("Resetting card...");
+        await reset_card(reader);
+    }
+}
+
+async function getMaxCapacity(reader) {
+    return await get_max_capacity(reader);
 }
 
 async function getBalance(reader){
@@ -282,48 +343,60 @@ nfc.on('reader', (reader) => {
     // Set up the reader to scan for new NFC cards
     reader.on('card', async card => {
 		console.log(`card detected`);
-        let balance = 0;
-        try{
-            balance = await getBalance(reader);
-        } catch (err) {
-            console.error("Could not get balance");
-        }
-        console.log(`BALANCE: ${balance} sats`);
-        const answer = await inquirer.prompt([
-                {
-                    type: 'list',
-                    name: 'choice',
-                    message: 'What do you want to do?',
-                    choices: ['top-up', 'withdraw', 'refresh']
-                }
-            ]);
-                  
-        try{
-            switch (answer.choice){
-                case 'top-up':
-                    await loadCard(reader);
-                    break;
-                case 'withdraw':
-                    await unloadCard(reader);
-                    break;
-                case 'refresh':
-                    await refreshCard(reader);
-                    break;
-                default:
-                    console.error("Invalid option");
+        const maxCapacity = await getMaxCapacity(reader);
+        console.log(`maximum capacity: ${maxCapacity} bytes`);
+        let isCard = true;
+
+        // Set up behaviour when card is remove
+        reader.on('card.off', card => {	
+            console.log(`${reader.reader.name}  card removed`);
+            isCard = false;
+        });
+
+
+        while (isCard)
+        {
+            let balance = 0;
+            try{
+                balance = await getBalance(reader);
+            } catch (err) {
+                console.error("Could not get balance");
             }
-            // await beepSuccess.play();
-            console.log("Success!");
-        } catch (err) {
-            //await beepError.play();
-            console.error(`Error during operation: `, err);
+            console.log(`BALANCE: ${balance} sats`);
+            const answer = await inquirer.prompt([
+                    {
+                        type: 'list',
+                        name: 'choice',
+                        message: 'What do you want to do?',
+                        choices: ['top-up', 'withdraw', 'refresh', 'reset']
+                    }
+                ]);
+                    
+            try {
+                switch (answer.choice){
+                    case 'top-up':
+                        await loadCard(reader);
+                        break;
+                    case 'withdraw':
+                        await unloadCard(reader);
+                        break;
+                    case 'refresh':
+                        await refreshCard(reader);
+                        break;
+                    case 'reset':
+                        await resetCard(reader);
+                        break;
+                    default:
+                        console.error("Invalid option");
+                }
+                // await beepSuccess.play();
+                console.log("Success!");
+            } catch (err) {
+                //await beepError.play();
+                console.error(`Error during operation: `, err);
+            }
         }
     });
-
-    // Set up behaviour when card is removed
-    reader.on('card.off', card => {	
-		console.log(`${reader.reader.name}  card removed`);
-	});
 
     // Set up the reader to handle errors
     reader.on('error', (err) => {

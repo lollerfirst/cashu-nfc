@@ -1,7 +1,3 @@
 {
-    "mint": "http://127.0.0.1:3338",
-    "sounds": {
-        "success_beep": "path/to/res/success-beep.mp3",
-        "error_beep": "path/to/res/success-beep.mp3"
-    }
-}
+    "mint": "http://8333.space:3338",
+}   
