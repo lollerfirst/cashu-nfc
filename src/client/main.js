@@ -12,8 +12,12 @@ import {
     writeCard,
     resetCard,
     getMaxCapacity,
-} from '../common/nfc';
-import { process } from 'node:process';
+} from '../common/nfc.js';
+import {
+    sleep,
+    compileToken,
+} from '../common/helpers.js';
+import process from 'node:process';
 import qrcode from 'qrcode-terminal';
 import bolt11 from 'bolt11';
 
@@ -25,21 +29,6 @@ try {
 } catch (err) {
     console.error(`Error loading configuration file: ${err}`);
     process.exit(1);
-}
-
-
-// Helper functions
-function compileToken(mint, proofs) {
-    return {
-        token: [{
-            proofs: proofs,
-            mint: mint
-        }],
-        unit: "sat"
-    }
-}
-function sleep(seconds) {
-    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 
 // Load credit card
