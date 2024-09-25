@@ -1,7 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
-const nfc = require('nfc-pcsc');
+import fs from 'fs';
+import path from 'path';
+import sqlite3 from 'sqlite3';
+import nfc from 'nfc-pcsc';
+import process from 'node:process';
+
 
 // Load the configuration file
 const configPath = path.join(__dirname, 'merchant.json');
@@ -54,9 +56,9 @@ nfc.on('reader', (reader) => {
     reader.autoProcessing = false;
 
     // Set up the reader to scan for new NFC cards
-    reader.on('card', async card => {
+    reader.on('card', async (card) => {
         console.log();
-		console.log(`card detected`, card);
+		    console.log(`card detected`, card);
         try{
             const data = await reader.read(4, 12);
             console.log(`NFC card detected: ${data}`);
@@ -84,11 +86,6 @@ nfc.on('error', (err) => {
 console.error(`Error connecting to NFC device: ${err}`);
 process.exit(1);
 });
-  
-  // Function to process the NFC card
-function processCard(data) {
-    console.log("fake processing...")
-}
 
 setInterval(() => {
   // Do nothing, just keep the program running
