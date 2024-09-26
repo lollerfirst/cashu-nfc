@@ -33,21 +33,31 @@ export const deserializeToken = function (tokenString) {
     return deserialized;
 }
 
-export const compileToken = function (mint, proofs) {
+export const compileCompressedToken = function (mint, proofs) {
     const keyset_id = proofs[0].id;
     if (!proofs.every(p => p.id === keyset_id)) {
         throw new Error("Some proofs have been signed with a different keyset.");
     }
-    // We calculate the cumulative C
     const cumulativeC = calculateCumulativeC(proofs.map(p => p.C));
     // We strip the keyset ID, since it's always the same.
-    const strippedProofs = proofs.map(p => {return {x: p.secret, a: p.amount}});
+    const strippedProofs = proofs.map(p => {return {x: p.secret, a: p.amount, c: p.C}});
     return {
         k: keyset_id,
         p: strippedProofs,
         m: mint,
         u: "sat",
-        c: cumulativeC,
+        c: cumulativeC
+    }
+}
+
+export const compileToken = function (mint, proofs) {
+    return {
+        token: [{
+            proofs: proofs,
+            mint: mint,
+        }],
+        memo: '',
+        unit: 'sat',
     }
 }
 

@@ -4,6 +4,7 @@ import sqlite3 from 'sqlite3';
 import nfc from 'nfc-pcsc';
 import process from 'node:process';
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 // Load the configuration file
 const configPath = path.join(__dirname, 'merchant.json');
