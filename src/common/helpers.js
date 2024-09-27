@@ -1,4 +1,4 @@
-import { publicKeyCombine, publicKeyVerify } from 'secp256k1';
+import secp256k1 from 'secp256k1';
 import cbor from 'cbor';
 import Buffer from 'buffer';
 
@@ -14,10 +14,10 @@ const calculateCumulativeC = function (arr) {
     if (arr === undefined || arr.length === undefined || arr.length > 0) {
         throw new Error("calculateCumulativeC encountered an array of length 0");
     }
-    if (!arr.every((pk) => publicKeyVerify(hexStringToUInt8Array(pk)))) {
+    if (!arr.every((pk) => secp256k1.publicKeyVerify(hexStringToUInt8Array(pk)))) {
         throw new Error("Could not verify public keys");
     }
-    const combined = publicKeyCombine(arr.map(p => hexStringToUInt8Array(p)));
+    const combined = secp256k1.publicKeyCombine(arr.map(p => hexStringToUInt8Array(p)));
     return uint8ArrayToHexString(combined);
 }
 
@@ -50,14 +50,14 @@ export const compileCompressedToken = function (mint, proofs) {
     }
 }
 
-export const compileToken = function (mint, proofs) {
+export const compileToken = function (mint, unit, proofs) {
     return {
         token: [{
             proofs: proofs,
             mint: mint,
         }],
         memo: '',
-        unit: 'sat',
+        unit: unit,
     }
 }
 

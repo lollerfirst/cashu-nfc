@@ -1,4 +1,5 @@
 {
     "sqlite_path": "/path/to/merchant.sqlite",
-    "trusted_mints": ["http://127.0.0.1:3338"]
+    "trusted_mints": ["http://127.0.0.1:3338"],
+    "supported_units": ["sat", "msat", "usd", "eur"]
 }

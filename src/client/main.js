@@ -103,7 +103,7 @@ async function loadCard(reader) {
     }
 
     
-    const token = compileToken(wallet.mint.mintUrl, proofs);  
+    const token = compileToken(wallet.mint.mintUrl, 'sat', proofs);  
     //console.log(JSON.stringify(token.token[0].proofs, null, 2));
     const tokenString = getEncodedTokenV4(token);
     // Write token to card
@@ -132,7 +132,7 @@ async function unloadCard(reader){
             console.warn(`Mint in the card (${mint}) is different than the wallet's mint (${wallet.mint.mintUrl})`);
         }
         proofs = await wallet.receive(token);
-        const tokenString = getEncodedTokenV4(compileToken(mint, proofs));
+        const tokenString = getEncodedTokenV4(compileToken(mint, 'sat', proofs));
         console.log(`Cashu token for ${amountProofs} sats:`);
         console.log(tokenString);
         qrcode.generate(tokenString, { small: true },  (qr) => {
@@ -164,7 +164,7 @@ async function unloadCard(reader){
             throw new Error("Error while paying the invoice");
         }
         console.log(`Payment success: ${preimage}`);
-        const tokenChange = getEncodedTokenV4(compileToken(mint, change));
+        const tokenChange = getEncodedTokenV4(compileToken(mint, 'sat', change));
         await writeCard(reader, tokenChange);
     }
     else {
@@ -175,7 +175,7 @@ async function unloadCard(reader){
 async function refreshCard(reader) {
     let tokenString = await readCard(reader);
     const proofs = await wallet.receive(tokenString);
-    tokenString = getEncodedTokenV4(compileToken(wallet.mint.mintUrl, proofs));
+    tokenString = getEncodedTokenV4(compileToken(wallet.mint.mintUrl, 'sat', proofs));
     await writeCard(reader, tokenString);
     console.log("Card Refreshed!");
 }
@@ -248,7 +248,7 @@ nfc.on('reader', (reader) => {
                         type: 'list',
                         name: 'choice',
                         message: 'What do you want to do?',
-                        choices: ['top-up', 'withdraw', 'refresh', 'reset']
+                        choices: ['top-up', 'withdraw', 'refresh', 'reset', 'exit']
                     }
                 ]);
                     
@@ -265,6 +265,9 @@ nfc.on('reader', (reader) => {
                         break;
                     case 'reset':
                         await deleteCard(reader);
+                        break;
+                    case 'exit':
+                        process.exit(0);
                         break;
                     default:
                         console.error("Invalid option");
@@ -294,8 +297,3 @@ nfc.on('reader', (reader) => {
 nfc.on('error', err => {
     console.error(`Error occurred `, err);
 });
-
-setInterval(() => {
-    // Do nothing, just keep the program running
-}, 1000);
-  
