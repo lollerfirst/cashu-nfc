@@ -71,20 +71,20 @@ const persistProofs = function (proofs, mint, unit) {
 }
 
 const loadProofsFromDB = function (mint, unit) {
-  const sql = 'SELECT * FROM proofs WHERE mint = ? AND unit = ?;';
-  const proofs = [];
-  db.all(sql, [mint, unit], (err, rows) => {
-    if (err) {
-      console.error(err);
-      throw new Error(err);
-    } else {
-      rows.forEach(row => {
-        proofs.push({id: row.keyset, amount: row.amount, secret: row.secret, C: row.signature});
-      });
-    }
+  return new Promise( (resolve, reject) => {
+    const sql = 'SELECT * FROM proofs WHERE mint = ? AND unit = ?;';
+    const proofs = [];
+    db.all(sql, [mint, unit], (err, rows) => {
+      if (err) {
+        console.error(err);
+        reject(err);
+      } else {
+        for (const row of rows)
+          proofs.push({id: row.keyset, amount: row.amount, secret: row.secret, C: row.signature});
+        resolve(proofs);
+      }
+    });
   });
-
-  return proofs;
 }
 
 const validateIntegerInput = function (input) {
@@ -195,8 +195,9 @@ const cashOut = async function () {
     }
   ]);
 
-  const proofs = loadProofsFromDB(response.mint, response.unit);
-  const balance = proofs.reduce((p, acc) => p.amount + acc, 0);
+  const proofs = await loadProofsFromDB(response.mint, response.unit);
+  console.log(proofs);
+  const balance = proofs.reduce((acc, p) => p.amount + acc, 0);
   console.log(`Cash balance amounts to ${balance} sats`);
 
   if (response.amount > balance) {
