@@ -12,7 +12,7 @@ cashu-nfc is a Node.js project composed of two separate applications: `client` a
 ### Linux
 Run this to install required dependencies:
  ```bash
-sudo apt install libnfc-bin pcscd pcsc-tools
+sudo apt install -y libnfc-bin pcscd pcsc-tools
 ```
 Reload the pcsc service:
 ```bash
