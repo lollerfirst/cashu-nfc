@@ -28,7 +28,7 @@ npm install
 ```
 
 >[!TIP]
-> if you're system has trouble detecting the reader,
+> if your system has trouble detecting the reader,
 > try this guide: https://andv.medium.com/how-to-fix-acr122s-and-libnfcs-unable-to-claim-usb-interface-on-kali-linux-932a34bb8e32
 
 ## Running the Applications
