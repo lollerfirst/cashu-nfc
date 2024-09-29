@@ -14,12 +14,20 @@ Run this to install required dependencies:
  ```bash
 sudo apt install libnfc-bin pcscd pcsc-tools
 ```
+Reload the pcsc service:
+```bash
+sudo systemctl restart pcscd.service
+```
+With the reader connected, check that the daemon is able to connect with it:
+```bash
+pcsc_scan
+```
 Then to install the project, navigate to the root directory and run:
 ```bash
 npm install
 ```
 
->![NOTICE]
+>[!TIP]
 > if you're system has trouble detecting the reader,
 > try this guide: https://andv.medium.com/how-to-fix-acr122s-and-libnfcs-unable-to-claim-usb-interface-on-kali-linux-932a34bb8e32
 
