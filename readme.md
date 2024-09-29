@@ -44,7 +44,7 @@ The client application uses Inquirer to provide a menu-driven interface, allowin
 
 * `Top-up`: Add e-cash to your NFC card
 * `Withdraw`: Remove e-cash from your NFC card
-* `Refresh`: Update the e-cash balance on your NFC card
+* `Refresh`: Swap old e-cash from your card and mint some fresh
 * `Reset`: Erase the contents in the NFC card
 
 ### Merchant
