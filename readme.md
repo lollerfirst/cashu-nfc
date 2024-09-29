@@ -1,6 +1,6 @@
 # cashu-nfc 💳
 
-cashu-nfc is a Node.js project composed of two separate applications: `client` and `merchant`. These applications work together to simulate a cashless payment system using NFC cards.
+cashu-nfc is a Node.js project composed of two separate applications: `client` and `merchant`. These applications operate on NFC cards to store and read ecash from them.
 
 ## Overview
 
