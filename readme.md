@@ -54,7 +54,9 @@ To run the merchant application, use the following command:
 npm run merchant
 ```
 
-The merchant application allows you to request payments from customers through the `Request Payment` option and store them in the SQLite database, just like a cashier's cash drawer. You can also withdraw cash from the "drawer" as needed with the `Cash Out` option.
+The merchant application allows you to:
+* Request payments from customers through the `Request Payment` option and store them in the SQLite database, just like a cashier's cash drawer.
+* Withdraw cash from the "drawer" as needed with the `Cash Out` option.
 
 ## Contribute
 
