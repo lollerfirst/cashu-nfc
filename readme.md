@@ -55,3 +55,9 @@ npm run merchant
 ```
 
 The merchant application allows you to request payments from customers through the `Request Payment` option and store them in the SQLite database, just like a cashier's cash drawer. You can also withdraw cash from the "drawer" as needed with the `Cash Out` option.
+
+## Contribute
+
+Contributions to cashu-nfc are welcome and greatly appreciated. By contributing to this project, you acknowledge that you are contributing to open source software and agree to the terms of the MIT License provided in this project.
+
+By submitting a pull request or issue, you grant permission for your contribution to be licensed under the MIT License. This means that your contribution will be freely available for others to use, modify, and distribute, and you will not be entitled to any royalties or other compensation.
