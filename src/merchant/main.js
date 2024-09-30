@@ -151,6 +151,7 @@ const requestPayment = async function () {
 
     // We pocket the amount we requested
     persistProofs(send, token.token[0].mint, token.unit ?? 'sat');
+    console.log("\x1b[1;32m" + `PAYMENT SUCCESSFUL: ${amount} ${token.unit ?? 'sats'}` + "\x1b[0m");
 
     // Return the change into the card
     const amountChange = returnChange.reduce((acc, p) => p.amount + acc, 0);
@@ -196,7 +197,6 @@ const cashOut = async function () {
   ]);
 
   const proofs = await loadProofsFromDB(response.mint, response.unit);
-  console.log(proofs);
   const balance = proofs.reduce((acc, p) => p.amount + acc, 0);
   console.log(`Cash balance amounts to ${balance} sats`);
 
@@ -218,6 +218,8 @@ const cashOut = async function () {
     console.log(qr);
     console.log(tokenString);
   });
+
+  console.log("\x1b[1;32m" + `SUCCESSFULLY CASHED OUT: ${response.amount} ${response.unit}` + "\x1b[0m");
 }
 
 let exit = false;
@@ -246,7 +248,7 @@ while (!exit) {
         console.error("Invalid option!");
     }
   } catch (err) {
-    console.error(err);
+    console.error("\x1b[1;31m" + `ERROR: ${err}` + "\x1b[0m");
   }
 }
 
