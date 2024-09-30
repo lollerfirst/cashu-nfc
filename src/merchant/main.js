@@ -170,7 +170,7 @@ const requestPayment = async function () {
     }
   } else {
     // Temporary rejection behaviour -- Unimplemented yet
-    console.error(`mint ${token.token[0].mint} is not a trusted mint!`);
+    throw new Error(`mint ${token.token[0].mint} is not a trusted mint!`);
   }
 }
 
