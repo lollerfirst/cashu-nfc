@@ -160,8 +160,8 @@ const requestPayment = async function () {
     try {
       await writeCard(reader, changeTokenString);
       console.log(`Successfully returned ${amountChange} ${wallet.unit} of change`)
-    } catch {
-      console.error("Could not return the change in the card!");
+    } catch (err) {
+      console.error(`\x1b[1;32mCould not return the change in the card: ${err}\x1b[0m`);
       console.log(`Here's a cashu token for ${amountChange} ${wallet.unit} of change instead:`)
       qrcode.generate(changeTokenString, { small: true }, (qr) => {
         console.log(qr);
