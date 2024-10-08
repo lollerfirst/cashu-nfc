@@ -8,6 +8,9 @@ import { readCard, writeCard } from '../common/nfc.js';
 import { getDecodedToken, CashuWallet, CashuMint, getEncodedTokenV4 } from '@cashu/cashu-ts';
 import { compileToken } from '../common/helpers.js';
 import qrcode from 'qrcode-terminal';
+import bolt11 from 'bolt11';
+import crypto from 'crypto';
+import { Buffer } from 'buffer';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
@@ -112,6 +115,23 @@ const waitForCard = function (nfc) {
   });
 }
 
+const returnChangeToCard = async function (reader, changeProofs, mintUrl, unit) {
+  const amountChange = changeProofs.reduce((acc, p) => p.amount + acc, 0);
+  const changeToken = compileToken(mintUrl, unit, changeProofs);
+  const changeTokenString = getEncodedTokenV4(changeToken);
+  try {
+    await writeCard(reader, changeTokenString);
+    console.log(`Successfully returned ${amountChange} ${unit} of change`)
+  } catch (err) {
+    console.error(`\x1b[1;31mCould not return the change in the card: ${err}\x1b[0m`);
+    console.log(`Here's a cashu token for ${amountChange} ${unit} of change instead:`)
+    qrcode.generate(changeTokenString, { small: true }, (qr) => {
+      console.log(qr);
+      console.log(changeTokenString);
+    });
+  }
+}
+
 const requestPayment = async function () {
   const response = await inquirer.prompt([
     {
@@ -150,27 +170,37 @@ const requestPayment = async function () {
     const { returnChange, send } = await wallet.send(amount, proofs);
 
     // We pocket the amount we requested
-    persistProofs(send, token.token[0].mint, token.unit ?? 'sat');
+    persistProofs(send, wallet.mint.mintUrl, wallet.unit);
     console.log("\x1b[1;32m" + `PAYMENT SUCCESSFUL: ${amount} ${token.unit ?? 'sats'}` + "\x1b[0m");
 
     // Return the change into the card
-    const amountChange = returnChange.reduce((acc, p) => p.amount + acc, 0);
-    const changeToken = compileToken(wallet.mint.mintUrl, wallet.unit, returnChange);
-    const changeTokenString = getEncodedTokenV4(changeToken);
-    try {
-      await writeCard(reader, changeTokenString);
-      console.log(`Successfully returned ${amountChange} ${wallet.unit} of change`)
-    } catch (err) {
-      console.error(`\x1b[1;32mCould not return the change in the card: ${err}\x1b[0m`);
-      console.log(`Here's a cashu token for ${amountChange} ${wallet.unit} of change instead:`)
-      qrcode.generate(changeTokenString, { small: true }, (qr) => {
-        console.log(qr);
-        console.log(changeTokenString);
-      });
-    }
+    await returnChangeToCard(reader, returnChange, wallet.mint.mintUrl, wallet.unit);
   } else {
-    // Temporary rejection behaviour -- Unimplemented yet
-    throw new Error(`mint ${token.token[0].mint} is not a trusted mint!`);
+    // We fetch an invoice for the requested amount on one of our mints
+    const trustedMint = new CashuMint(config.trusted_mints[0]);
+    const trustedMintWallet = new CashuWallet(trustedMint, { unit: token.unit ?? 'sat'});
+
+    const quote = await trustedMintWallet.createMintQuote(amount);
+    const { returnChange, send } = await wallet.send(amount, proofs);
+    const response = await wallet.payLnInvoice(quote.request, send);
+    const decodedRequest = bolt11.decode(quote.request);
+    const paymentHash = decodedRequest.tagsObject.payment_hash;
+    const preimage = Buffer.from(response.preimage ?? '00', 'hex');
+    const hash = crypto.createHash('sha256').update(preimage).digest('hex');
+    if (hash !== paymentHash) {
+      console.error("\x1b[1;31mCould not pay invoice from stranger mint, aborting!\x1b[0m");
+      await returnChangeToCard(reader, returnChange.concat(send), wallet.mint.mintUrl, wallet.unit);
+      throw new Error("Could not pay invoice from stranger mint, aborting!");
+    }
+    try {
+      const mintedProofs = await trustedMintWallet.mintTokens(amount, quote.quote);
+      persistProofs(mintedProofs.proofs, wallet.mint.mintUrl, wallet.unit);
+    } catch (err) {
+      console.error(`\x1b[1;31mError: ${err}\x1b[0m`);
+      console.warn("\x1b[93mCould not get newly minted proofs from trusted mint, we store the quote!\x1b[0m");
+      // TODO: persist quote
+    }
+    await returnChangeToCard(reader, returnChange, wallet.mint.mintUrl, wallet.unit);    
   }
 }
 
