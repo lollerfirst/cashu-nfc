@@ -7,7 +7,7 @@ const BLOCK_SIZE = 16;
 
 // Dump proofs into credit card, prefixing them with the length of the BLOB.
 export async function writeCard(reader, tokenString) {
-    const record = ndef.textRecord(tokenString, "en-US");
+    const record = ndef.mimeMediaRecord("text/plain", tokenString);
     const ndefMessageBytes = ndef.encodeMessage([record]);
     const pad = (BLOCK_SIZE - (ndefMessageBytes.length % BLOCK_SIZE)) % BLOCK_SIZE;
     const data = Buffer.concat([Buffer.from(ndefMessageBytes), Buffer.alloc(pad)]);
@@ -69,7 +69,8 @@ export async function readCard(reader) {
     if (cashuIndex == -1) {
         throw new Error("This is not a Cashu token!");
     }
-    console.log(`tokenString.length = ${tokenString.length}`)
+    console.log(`cashu index: ${cashuIndex}`);
+    console.log(`header: ${JSON.stringify(payload.slice(0, cashuIndex))}`)
     console.log(`token: ${tokenString.substring(cashuIndex)}`);
     return tokenString.substring(cashuIndex, tokenString.length-1);
 }
