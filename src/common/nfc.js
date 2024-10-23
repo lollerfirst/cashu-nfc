@@ -9,7 +9,7 @@ const BLOCK_SIZE = 16;
 export async function writeCard(reader, tokenString) {
     const record = ndef.uriRecord(tokenString);
     const ndefMessageBytes = ndef.encodeMessage([record]);
-    const pad = (BLOCK_SIZE - (ndefMessageBytes.length % BLOCK_SIZE)) % BLOCK_SIZE;
+    const pad = BLOCK_SIZE - (ndefMessageBytes.length % BLOCK_SIZE);
     const data = Buffer.concat([Buffer.from(ndefMessageBytes), Buffer.alloc(pad)]);
     let remainingLength = ndefMessageBytes.length + pad
     let block = 4; // Start from block 4
