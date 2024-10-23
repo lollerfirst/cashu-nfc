@@ -60,7 +60,26 @@ db.serialize(function() {
       unit TEXT NOT NULL
     )
   `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS mint_quotes (
+      request TEXT NOT NULL,
+      id TEXT NOT NULL,
+      state TEXT NOT NULL,
+      mint TEXT NOT NULL,
+      unit TEXT NOT NULL,
+      expiry INTEGER NOT NULL
+    )
+  `);
 });
+
+const persistQuote = function (quote, mintUrl, unit) {
+  db.run('INSERT INTO mint_quotes (request, id, state, mint, unit, expiry) VALUES (?, ?, ?, ?, ?, ?)',
+    [quote.request, quote.quote, quote.state, mintUrl, unit, quote.expiry], (err) => {
+      if (err) {
+        console.error(err);
+      }
+    });
+}
 
 const persistProofs = function (proofs, mint, unit) {
   for (const p of proofs) {
@@ -176,30 +195,47 @@ const requestPayment = async function () {
     // Return the change into the card
     await returnChangeToCard(reader, returnChange, wallet.mint.mintUrl, wallet.unit);
   } else {
-    // We fetch an invoice for the requested amount on one of our mints
+    // We fetch a mint quote for the requested amount on one of our mints
     const trustedMint = new CashuMint(config.trusted_mints[0]);
     const trustedMintWallet = new CashuWallet(trustedMint, { unit: token.unit ?? 'sat'});
+    const mintQuote = await trustedMintWallet.createMintQuote(amount);
 
-    const quote = await trustedMintWallet.createMintQuote(amount);
+    // Fetch the melt quote from untrusted mint
+    const meltQuote = await wallet.createMeltQuote(mintQuote.request);
+
+    if (proofsAmount < meltQuote.amount + meltQuote.fee_reserve) {
+      throw new Error("Insufficient funds! (fee reserve)");
+    }
+
+    // Receive and split the ecash
     const { returnChange, send } = await wallet.send(amount, proofs);
-    const response = await wallet.payLnInvoice(quote.request, send);
-    const decodedRequest = bolt11.decode(quote.request);
+
+    // Pay the invoice
+    const response = await wallet.payLnInvoice(mintQuote.request, send, meltQuote);
+
+    // Check the payment preimage
+    const decodedRequest = bolt11.decode(mintQuote.request);
     const paymentHash = decodedRequest.tagsObject.payment_hash;
     const preimage = Buffer.from(response.preimage ?? '00', 'hex');
     const hash = crypto.createHash('sha256').update(preimage).digest('hex');
+    console.log(`hash : ${hash}\npaymentHash : ${paymentHash}`);
     if (hash !== paymentHash) {
       console.error("\x1b[1;31mCould not pay invoice from stranger mint, aborting!\x1b[0m");
       await returnChangeToCard(reader, returnChange.concat(send), wallet.mint.mintUrl, wallet.unit);
       throw new Error("Could not pay invoice from stranger mint, aborting!");
     }
+
+    // Try and mint the proofs
     try {
-      const mintedProofs = await trustedMintWallet.mintTokens(amount, quote.quote);
+      const mintedProofs = await trustedMintWallet.mintTokens(amount, mintQuote.quote);
       persistProofs(mintedProofs.proofs, wallet.mint.mintUrl, wallet.unit);
     } catch (err) {
       console.error(`\x1b[1;31mError: ${err}\x1b[0m`);
       console.warn("\x1b[93mCould not get newly minted proofs from trusted mint, we store the quote!\x1b[0m");
-      // TODO: persist quote
+      persistQuote(mintQuote, trustedMintWallet.mint.mintUrl, trustedMintWallet.unit);
     }
+
+    // Return the change to card
     await returnChangeToCard(reader, returnChange, wallet.mint.mintUrl, wallet.unit);    
   }
 }
