@@ -7,7 +7,7 @@ const BLOCK_SIZE = 16;
 
 // Dump proofs into credit card, prefixing them with the length of the BLOB.
 export async function writeCard(reader, tokenString) {
-    const record = ndef.mimeMediaRecord("text/plain", tokenString);
+    const record = ndef.uriRecord(tokenString);
     const ndefMessageBytes = ndef.encodeMessage([record]);
     const pad = (BLOCK_SIZE - (ndefMessageBytes.length % BLOCK_SIZE)) % BLOCK_SIZE;
     const data = Buffer.concat([Buffer.from(ndefMessageBytes), Buffer.alloc(pad)]);
